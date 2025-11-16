@@ -6,17 +6,16 @@ from discord.ui import View, Button, Modal, TextInput
 # =======================
 # Intents ir bot
 # =======================
+# Tik baziniai intents + message_content
 intents = discord.Intents.default()
-intents.message_content = True
-intents.guilds = True
-intents.members = True
+intents.message_content = True  # reikalinga interakcijoms su mygtukais/modalu
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # =======================
 # Globalūs duomenys
 # =======================
-applications_data = {}  # Laikys atsakymus laikinas: {user_id: {q1: answer,...}}
+applications_data = {}  # Laikys atsakymus laikinas: {user_id: {Q1: answer,...}}
 
 # =======================
 # Modal – klausimai
@@ -28,13 +27,20 @@ class ApplicationModal(Modal):
 
         # 10 klausimų
         for i in range(1, 11):
-            self.add_item(TextInput(label=f"Question {i}", style=discord.TextStyle.paragraph, placeholder=f"Answer for question {i}"))
+            self.add_item(TextInput(
+                label=f"Question {i}",
+                style=discord.TextStyle.paragraph,
+                placeholder=f"Answer for question {i}"
+            ))
 
     async def on_submit(self, interaction: discord.Interaction):
         # Įrašome atsakymus
         applications_data[self.user_id] = {f"Q{i+1}": field.value for i, field in enumerate(self.children)}
 
-        await interaction.response.send_message("✅ Survey submitted! Your application has been sent.", ephemeral=True)
+        await interaction.response.send_message(
+            "✅ Survey submitted! Your application has been sent.",
+            ephemeral=True
+        )
 
         guild = interaction.guild
         channel = discord.utils.get(guild.text_channels, name="applications")
@@ -66,9 +72,15 @@ class ApplyButtonView(View):
     async def apply_button(self, interaction: discord.Interaction, button: Button):
         try:
             await interaction.user.send_modal(ApplicationModal(interaction.user.id))
-            await interaction.response.send_message("📬 Check your DMs to fill the application.", ephemeral=True)
+            await interaction.response.send_message(
+                "📬 Check your DMs to fill the application.",
+                ephemeral=True
+            )
         except discord.Forbidden:
-            await interaction.response.send_message("❌ I cannot DM you. Please enable DMs from server members.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ I cannot DM you. Please enable DMs from server members.",
+                ephemeral=True
+            )
 
 # =======================
 # Slash komanda /send_application_embed
@@ -77,7 +89,10 @@ class ApplyButtonView(View):
 @bot.tree.command(name="send_application_embed", description="Send the application embed to channel")
 async def send_application_embed(interaction: discord.Interaction):
     if not interaction.user.guild_permissions.manage_messages:
-        await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
+        await interaction.response.send_message(
+            "❌ You don't have permission to use this command.",
+            ephemeral=True
+        )
         return
 
     embed = discord.Embed(

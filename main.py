@@ -24,6 +24,7 @@ def run_server():
 # =======================
 intents = discord.Intents.default()
 intents.message_content = True
+intents.guilds = True  # reikalinga guild eventams
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -122,13 +123,21 @@ async def send_application_embed(interaction: discord.Interaction):
 @bot.event
 async def on_ready():
     print(f"Bot logged in as {bot.user}")
-
-    # Globali slash komandų sinchronizacija visiems guildams
+    # Globali sinchronizacija visiems guildams (nebūtina, bet gali būti)
     try:
         await bot.tree.sync()
-        print("Slash commands synchronized globally.")
+        print("Global slash commands synchronized.")
     except Exception as e:
-        print(f"Failed to sync commands: {e}")
+        print(f"Global sync failed: {e}")
+
+@bot.event
+async def on_guild_join(guild: discord.Guild):
+    """Kai botas prisijungia prie naujo serverio, sinchronizuojame komandas tame guild."""
+    try:
+        await bot.tree.sync(guild=guild)
+        print(f"Slash commands synchronized for guild: {guild.name} ({guild.id})")
+    except Exception as e:
+        print(f"Failed to sync commands for guild {guild.name}: {e}")
 
 # =======================
 # Paleidimas

@@ -37,7 +37,21 @@ class SimpleButtonView(View):
 
     @discord.ui.button(label="Create Ticket", style=discord.ButtonStyle.green)
     async def button_callback(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_message("You clicked the button!", ephemeral=True)
+        # Pirmas atsakymas (ephemeral)
+        await interaction.response.send_message(
+            "Ticket created. Check your DMs.",
+            ephemeral=True
+        )
+
+        # Bandome siųsti DM žinutę
+        try:
+            await interaction.user.send("1. What's your in-game name?")
+        except discord.Forbidden:
+            # Jei vartotojo DM užrakinti
+            await interaction.followup.send(
+                "I cannot DM you. Please enable Direct Messages from server members.",
+                ephemeral=True
+            )
 
 # ======================================
 # Slash komanda (GUILD ONLY – instant update)

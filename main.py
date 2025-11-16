@@ -23,14 +23,14 @@ def run_server():
 # Intents ir bot
 # =======================
 intents = discord.Intents.default()
-intents.message_content = True  # reikalinga interakcijoms su mygtukais/modalu
+intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # =======================
 # Globalūs duomenys
 # =======================
-applications_data = {}  # Laikys atsakymus laikinas: {user_id: {Q1: answer,...}}
+applications_data = {}
 
 # =======================
 # Modal – klausimai
@@ -122,15 +122,17 @@ async def send_application_embed(interaction: discord.Interaction):
 @bot.event
 async def on_ready():
     print(f"Bot logged in as {bot.user}")
-    await bot.tree.sync()
-    print("Slash commands synchronized.")
+
+    # Globali slash komandų sinchronizacija visiems guildams
+    try:
+        await bot.tree.sync()
+        print("Slash commands synchronized globally.")
+    except Exception as e:
+        print(f"Failed to sync commands: {e}")
 
 # =======================
 # Paleidimas
 # =======================
 if __name__ == "__main__":
-    # Paleidžiam minimalų HTTP serverį Render fone
     threading.Thread(target=run_server, daemon=True).start()
-
-    # Paleidžiam Discord botą
     bot.run(os.environ["DISCORD_TOKEN"])

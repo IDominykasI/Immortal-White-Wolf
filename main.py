@@ -35,7 +35,7 @@ class SimpleButtonView(View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Click me!", style=discord.ButtonStyle.green)
+    @discord.ui.button(label="Create Ticket", style=discord.ButtonStyle.green)
     async def button_callback(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_message("You clicked the button!", ephemeral=True)
 
@@ -49,8 +49,8 @@ class SimpleButtonView(View):
 )
 async def send_embed(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="Hello!",
-        description="This is a simple embed with a button.",
+        title="Guild Recruitment – Apply Here",
+        description="Click the button below to submit your application. An officer will review your ticket shortly. ",
         color=discord.Color.green()
     )
 

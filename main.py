@@ -32,36 +32,38 @@ intents.members = True  # needed to assign roles
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ======================================
-# Modal
+# Modal (10-question form)
 # ======================================
 class ApplicationModal(Modal):
     def __init__(self, applicant: discord.Member):
-        super().__init__(title="Guild Application")
+        super().__init__(title="Guild Application Form")
         self.applicant = applicant
-        # Add questions
-        self.add_item(TextInput(
-            label="1. What's your in-game name?",
-            placeholder="Enter your IGN here...",
-            style=discord.TextStyle.short
-        ))
+
+        self.add_item(TextInput(label="1. What's your in-game name?", style=discord.TextStyle.short))
+        self.add_item(TextInput(label="2. What's your total fame?", style=discord.TextStyle.short))
+        self.add_item(TextInput(label="3. What role do you usually play?", style=discord.TextStyle.short))
+        self.add_item(TextInput(label="4. How many days per week are you active?", style=discord.TextStyle.short))
+        self.add_item(TextInput(label="5. Are you willing to participate in PvP?", style=discord.TextStyle.short))
+        self.add_item(TextInput(label="6. Are you willing to participate in PvE?", style=discord.TextStyle.short))
+        self.add_item(TextInput(label="7. Are you willing to participate in guild objectives?", style=discord.TextStyle.short))
+        self.add_item(TextInput(label="8. Are you able to use microphone?", style=discord.TextStyle.short))
+        self.add_item(TextInput(label="9. Do you have any VODs/clips of your gameplay?", style=discord.TextStyle.short))
+        self.add_item(TextInput(label="10. Why do you want to join our guild?", style=discord.TextStyle.paragraph))
 
     async def on_submit(self, interaction: discord.Interaction):
-        answer = self.children[0].value
-        # Send application to applications channel with buttons
-        channel = bot.get_channel(APPLICATIONS_CHANNEL_ID)
+        answers = "\n".join([f"**Q{i+1}:** {item.value}" for i, item in enumerate(self.children)])
+        channel = bot.get_channel(APPLICATIONS_CHANNEL_ID) or await bot.fetch_channel(APPLICATIONS_CHANNEL_ID)
         embed = discord.Embed(
             title="New Guild Application",
-            description=f"Applicant: {self.applicant.mention}\n**IGN:** {answer}",
+            description=f"Applicant: {self.applicant.mention}\n\n{answers}",
             color=discord.Color.green()
         )
         view = DecisionView(self.applicant)
         await channel.send(embed=embed, view=view)
-        await interaction.response.send_message(
-            "✅ Your application has been submitted!", ephemeral=True
-        )
+        await interaction.response.send_message("✅ Your application has been submitted!", ephemeral=True)
 
 # ======================================
-# Decision View
+# Decision View (Accept/Decline)
 # ======================================
 class DecisionView(View):
     def __init__(self, applicant: discord.Member):
@@ -72,19 +74,27 @@ class DecisionView(View):
     async def accept(self, interaction: discord.Interaction, button: Button):
         role = interaction.guild.get_role(MEMBER_ROLE_ID)
         if role:
-            await self.applicant.add_roles(role)
-        await self.applicant.send("🎉 Your application has been accepted! You now have the Member role.")
-        await interaction.message.delete()  # remove application message
+            try:
+                await self.applicant.add_roles(role)
+                await self.applicant.send("🎉 Your application has been accepted! You now have the Member role.")
+            except discord.Forbidden:
+                await interaction.response.send_message("❌ Cannot assign role or DM the applicant.", ephemeral=True)
+                return
+        await interaction.message.delete()
         await interaction.response.send_message("Application accepted!", ephemeral=True)
 
     @discord.ui.button(label="Decline", style=discord.ButtonStyle.red)
     async def decline(self, interaction: discord.Interaction, button: Button):
-        await self.applicant.send("❌ Your application has been declined.")
-        await interaction.message.delete()  # remove application message
+        try:
+            await self.applicant.send("❌ Your application has been declined.")
+        except discord.Forbidden:
+            await interaction.response.send_message("❌ Cannot DM the applicant.", ephemeral=True)
+            return
+        await interaction.message.delete()
         await interaction.response.send_message("Application declined!", ephemeral=True)
 
 # ======================================
-# Button View
+# Button View (Send modal)
 # ======================================
 class SimpleButtonView(View):
     def __init__(self):
@@ -92,7 +102,6 @@ class SimpleButtonView(View):
 
     @discord.ui.button(label="Create Ticket", style=discord.ButtonStyle.green)
     async def button_callback(self, interaction: discord.Interaction, button: Button):
-        # Show modal in channel (cannot send modal via DM)
         await interaction.response.send_modal(ApplicationModal(interaction.user))
 
 # ======================================

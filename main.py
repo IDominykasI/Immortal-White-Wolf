@@ -21,10 +21,11 @@ def run_server():
 # ======================================
 # Discord bot
 # ======================================
-GUILD_ID = 1183116557505798324  # tavo serverio ID
+GUILD_ID = 1183116557505798324          # tavo serverio ID
+APPLICATIONS_CHANNEL_ID = 123456789012345678  # pakeisk į savo applications kanalo ID
 
 intents = discord.Intents.default()
-intents.message_content = True  # pakanka modalams, buttonams ir slash komandoms
+intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -32,20 +33,42 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # Modal forma
 # ======================================
 class ApplicationModal(Modal):
-    def __init__(self):
+    def __init__(self, user: discord.Member):
         super().__init__(title="Guild Application")
-        # Pridėti vieną klausimą (galima pridėti daugiau)
+        self.user = user
+
+        # Pridėti klausimus (galima pridėti daugiau)
         self.add_item(TextInput(
             label="1. What's your in-game name?",
-            placeholder="Enter your IGN here...",
+            placeholder="Enter your IGN...",
             style=discord.TextStyle.short
+        ))
+        self.add_item(TextInput(
+            label="2. Why do you want to join?",
+            placeholder="Enter your reason...",
+            style=discord.TextStyle.paragraph
         ))
 
     async def on_submit(self, interaction: discord.Interaction):
-        answer = self.children[0].value
+        answers = [item.value for item in self.children]
+
+        # Atsakymas vartotojui (ephemeral)
         await interaction.response.send_message(
-            f"✅ Thanks! Your answer: `{answer}`", ephemeral=True
+            "✅ Your application has been submitted!", ephemeral=True
         )
+
+        # Siunčiame į applications kanalą
+        channel = bot.get_channel(APPLICATIONS_CHANNEL_ID)
+        if channel:
+            embed = discord.Embed(
+                title=f"New Application from {self.user}",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="1. In-game name", value=answers[0], inline=False)
+            embed.add_field(name="2. Reason", value=answers[1], inline=False)
+            await channel.send(embed=embed)
+        else:
+            print("Applications channel not found!")
 
 # ======================================
 # View su mygtuku
@@ -56,15 +79,8 @@ class SimpleButtonView(View):
 
     @discord.ui.button(label="Create Ticket", style=discord.ButtonStyle.green)
     async def button_callback(self, interaction: discord.Interaction, button: Button):
-        try:
-            await interaction.user.send_modal(ApplicationModal())
-            await interaction.response.send_message(
-                "📬 Check your DMs to fill the application!", ephemeral=True
-            )
-        except discord.Forbidden:
-            await interaction.response.send_message(
-                "❌ I cannot DM you. Please enable DMs from server members.", ephemeral=True
-            )
+        # Atidarome modal formą tame pačiame kanale
+        await interaction.response.send_modal(ApplicationModal(interaction.user))
 
 # ======================================
 # Slash komanda (guild-specific)
@@ -77,7 +93,7 @@ class SimpleButtonView(View):
 async def send_embed(interaction: discord.Interaction):
     embed = discord.Embed(
         title="Guild Recruitment – Apply Here",
-        description="Click the button below to submit your application. An officer will review your ticket shortly.",
+        description="Click the button below to submit your application. Officers will review your submission shortly.",
         color=discord.Color.green()
     )
     view = SimpleButtonView()

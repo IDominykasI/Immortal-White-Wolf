@@ -22,7 +22,7 @@ def run_server():
 # Discord bot
 # ======================================
 GUILD_ID = 1183116557505798324          # tavo serverio ID
-APPLICATIONS_CHANNEL_ID = 123456789012345678  # pakeisk į savo applications kanalo ID
+APPLICATIONS_CHANNEL_ID = 1439593741898747915  # pakeisk į savo applications kanalo ID
 
 intents = discord.Intents.default()
 intents.message_content = True

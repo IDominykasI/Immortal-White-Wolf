@@ -1,12 +1,27 @@
 import os
+import threading
 import discord
 from discord.ext import commands
 from discord.ui import View, Button, Modal, TextInput
+from fastapi import FastAPI
+import uvicorn
+
+# =======================
+# Minimalus HTTP serveris Render
+# =======================
+app = FastAPI()
+
+@app.get("/")
+async def root():
+    return {"status": "ok"}
+
+def run_server():
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 # =======================
 # Intents ir bot
 # =======================
-# Tik baziniai intents + message_content
 intents = discord.Intents.default()
 intents.message_content = True  # reikalinga interakcijoms su mygtukais/modalu
 
@@ -25,7 +40,6 @@ class ApplicationModal(Modal):
         super().__init__(title="Guild Application Survey")
         self.user_id = user_id
 
-        # 10 klausimų
         for i in range(1, 11):
             self.add_item(TextInput(
                 label=f"Question {i}",
@@ -34,7 +48,6 @@ class ApplicationModal(Modal):
             ))
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Įrašome atsakymus
         applications_data[self.user_id] = {f"Q{i+1}": field.value for i, field in enumerate(self.children)}
 
         await interaction.response.send_message(
@@ -45,7 +58,6 @@ class ApplicationModal(Modal):
         guild = interaction.guild
         channel = discord.utils.get(guild.text_channels, name="applications")
         if channel:
-            # Sukuriame ticket (thread)
             thread = await channel.create_thread(
                 name=f"Application - {interaction.user.display_name}",
                 type=discord.ChannelType.public_thread,
@@ -84,7 +96,6 @@ class ApplyButtonView(View):
 
 # =======================
 # Slash komanda /send_application_embed
-# Tik moderatoriams
 # =======================
 @bot.tree.command(name="send_application_embed", description="Send the application embed to channel")
 async def send_application_embed(interaction: discord.Interaction):
@@ -118,4 +129,8 @@ async def on_ready():
 # Paleidimas
 # =======================
 if __name__ == "__main__":
+    # Paleidžiam minimalų HTTP serverį Render fone
+    threading.Thread(target=run_server, daemon=True).start()
+
+    # Paleidžiam Discord botą
     bot.run(os.environ["DISCORD_TOKEN"])

@@ -2,7 +2,7 @@ import os
 import threading
 import discord
 from discord.ext import commands
-from discord.ui import View, Button, Modal, TextInput
+from discord.ui import View, Button
 from flask import Flask
 
 # =======================
@@ -16,11 +16,10 @@ def root():
 
 def run_server():
     port = int(os.environ.get("PORT", 8000))
-    # Flask veikia threaded, kad boto event loop nebūtų blokuojamas
     app.run(host="0.0.0.0", port=port, threaded=True)
 
 # =======================
-# Intents ir bot
+# Discord bot
 # =======================
 intents = discord.Intents.default()
 intents.message_content = True  # Pakanka modalams, mygtukams, slash komandoms
@@ -28,114 +27,40 @@ intents.message_content = True  # Pakanka modalams, mygtukams, slash komandoms
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # =======================
-# Globalūs duomenys
+# View su mygtuku
 # =======================
-applications_data = {}
-
-# =======================
-# Modal – klausimai
-# =======================
-class ApplicationModal(Modal):
-    def __init__(self, user_id):
-        super().__init__(title="Guild Application Survey")
-        self.user_id = user_id
-
-        for i in range(1, 11):
-            self.add_item(TextInput(
-                label=f"Question {i}",
-                style=discord.TextStyle.paragraph,
-                placeholder=f"Answer for question {i}"
-            ))
-
-    async def on_submit(self, interaction: discord.Interaction):
-        applications_data[self.user_id] = {f"Q{i+1}": field.value for i, field in enumerate(self.children)}
-
-        await interaction.response.send_message(
-            "✅ Survey submitted! Your application has been sent.",
-            ephemeral=True
-        )
-
-        guild = interaction.guild
-        channel = discord.utils.get(guild.text_channels, name="applications")
-        if channel:
-            thread = await channel.create_thread(
-                name=f"Application - {interaction.user.display_name}",
-                type=discord.ChannelType.public_thread,
-                auto_archive_duration=1440
-            )
-
-            embed = discord.Embed(
-                title=f"Application from {interaction.user}",
-                color=discord.Color.blue()
-            )
-            for i, field in enumerate(self.children):
-                embed.add_field(name=f"Q{i+1}", value=field.value, inline=False)
-
-            await thread.send(embed=embed)
-
-# =======================
-# Mygtukas embed žinutėje
-# =======================
-class ApplyButtonView(View):
+class SimpleButtonView(View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Apply Now", style=discord.ButtonStyle.green)
-    async def apply_button(self, interaction: discord.Interaction, button: Button):
-        try:
-            await interaction.user.send_modal(ApplicationModal(interaction.user.id))
-            await interaction.response.send_message(
-                "📬 Check your DMs to fill the application.",
-                ephemeral=True
-            )
-        except discord.Forbidden:
-            await interaction.response.send_message(
-                "❌ I cannot DM you. Please enable DMs from server members.",
-                ephemeral=True
-            )
+    @discord.ui.button(label="Click me!", style=discord.ButtonStyle.green)
+    async def button_callback(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_message("You clicked the button!", ephemeral=True)
 
 # =======================
-# Slash komanda /send_application_embed
+# Slash komanda /send_embed
 # =======================
-@bot.tree.command(name="send_application_embed", description="Send the application embed to channel")
-async def send_application_embed(interaction: discord.Interaction):
-    if not interaction.user.guild_permissions.manage_messages:
-        await interaction.response.send_message(
-            "❌ You don't have permission to use this command.",
-            ephemeral=True
-        )
-        return
-
+@bot.tree.command(name="send_embed", description="Sends a simple embed with a button")
+async def send_embed(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="Guild Application",
-        description="Click the button below to start your application!",
+        title="Hello!",
+        description="This is a simple embed with a button below.",
         color=discord.Color.green()
     )
-
-    view = ApplyButtonView()
-    await interaction.channel.send(embed=embed, view=view)
-    await interaction.response.send_message("✅ Application embed sent!", ephemeral=True)
+    view = SimpleButtonView()
+    await interaction.response.send_message(embed=embed, view=view)
 
 # =======================
-# Įvykiai
+# Eventai
 # =======================
 @bot.event
 async def on_ready():
     print(f"Bot logged in as {bot.user}")
     try:
         await bot.tree.sync()  # global sync
-        print("Global slash commands synchronized.")
+        print("Slash commands synchronized globally.")
     except Exception as e:
-        print(f"Global sync failed: {e}")
-
-@bot.event
-async def on_guild_join(guild: discord.Guild):
-    """Kai botas prisijungia prie naujo serverio, sinchronizuojame komandas tame guild."""
-    try:
-        await bot.tree.sync(guild=guild)
-        print(f"Slash commands synchronized for guild: {guild.name} ({guild.id})")
-    except Exception as e:
-        print(f"Failed to sync commands for guild {guild.name}: {e}")
+        print(f"Failed to sync commands: {e}")
 
 # =======================
 # Paleidimas

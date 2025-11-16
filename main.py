@@ -16,15 +16,14 @@ def root():
 
 def run_server():
     port = int(os.environ.get("PORT", 8000))
-    # Flask veikia su threaded=True, kad boto event loop nebūtų blokuojamas
+    # Flask veikia threaded, kad boto event loop nebūtų blokuojamas
     app.run(host="0.0.0.0", port=port, threaded=True)
 
 # =======================
 # Intents ir bot
 # =======================
 intents = discord.Intents.default()
-intents.message_content = True
-intents.guilds = True  # reikalinga guild eventams
+intents.message_content = True  # Pakanka modalams, mygtukams, slash komandoms
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -124,7 +123,7 @@ async def send_application_embed(interaction: discord.Interaction):
 async def on_ready():
     print(f"Bot logged in as {bot.user}")
     try:
-        await bot.tree.sync()
+        await bot.tree.sync()  # global sync
         print("Global slash commands synchronized.")
     except Exception as e:
         print(f"Global sync failed: {e}")

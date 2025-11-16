@@ -21,59 +21,66 @@ def run_server():
 # ======================================
 # Discord bot
 # ======================================
-GUILD_ID = 1183116557505798324          # your server ID
-APPLICATIONS_CHANNEL_ID = 123456789012345678  # applications channel ID
-MEMBER_ROLE_ID = 987654321098765432        # role to give when accepted
+GUILD_ID = 1183116557505798324
+APPLICATIONS_CHANNEL_ID = 123456789012345678  # replace with your channel ID
+MEMBER_ROLE_ID = 123456789012345678           # replace with your member role ID
 
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = True  # needed to assign roles
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ======================================
-# Modal form
+# Modal form for applicants
 # ======================================
 class ApplicationModal(Modal):
     def __init__(self, user: discord.Member):
         super().__init__(title="Guild Application")
         self.user = user
-
         self.add_item(TextInput(
             label="1. What's your in-game name?",
-            placeholder="Enter your IGN...",
+            placeholder="Enter your IGN here...",
             style=discord.TextStyle.short
-        ))
-        self.add_item(TextInput(
-            label="2. Why do you want to join?",
-            placeholder="Enter your reason...",
-            style=discord.TextStyle.paragraph
         ))
 
     async def on_submit(self, interaction: discord.Interaction):
-        answers = [item.value for item in self.children]
-
+        answer = self.children[0].value
         await interaction.response.send_message(
-            "✅ Your application has been submitted!", ephemeral=True
+            f"✅ Thanks! Your answer: `{answer}`", ephemeral=True
         )
 
-        channel = bot.get_channel(APPLICATIONS_CHANNEL_ID)
-        if channel:
-            embed = discord.Embed(
-                title=f"Application from {self.user}",
-                color=discord.Color.green()
-            )
-            embed.add_field(name="1. In-game name", value=answers[0], inline=False)
-            embed.add_field(name="2. Reason", value=answers[1], inline=False)
-
-            # Buttons for officers
-            view = OfficerReviewView(self.user)
-            await channel.send(embed=embed, view=view)
-        else:
-            print("Applications channel not found!")
+        # Send to applications channel with officer buttons
+        guild = bot.get_guild(GUILD_ID)
+        channel = guild.get_channel(APPLICATIONS_CHANNEL_ID)
+        embed = discord.Embed(
+            title="New Guild Application",
+            description=f"**Applicant:** {self.user.mention}\n**IGN:** {answer}",
+            color=discord.Color.green()
+        )
+        view = OfficerReviewView(self.user)
+        await channel.send(embed=embed, view=view)
 
 # ======================================
-# Officer buttons
+# View with button to start application
+# ======================================
+class SimpleButtonView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Create Ticket", style=discord.ButtonStyle.green)
+    async def button_callback(self, interaction: discord.Interaction, button: Button):
+        try:
+            await interaction.user.send_modal(ApplicationModal(interaction.user))
+            await interaction.response.send_message(
+                "📬 Check your DMs to fill the application!", ephemeral=True
+            )
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                "❌ I cannot DM you. Please enable DMs from server members.", ephemeral=True
+            )
+
+# ======================================
+# Officer buttons (Accept/Decline)
 # ======================================
 class OfficerReviewView(View):
     def __init__(self, applicant: discord.Member):
@@ -82,7 +89,6 @@ class OfficerReviewView(View):
 
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.green)
     async def accept_button(self, interaction: discord.Interaction, button: Button):
-        role = discord.Object(MEMBER_ROLE_ID)
         guild = bot.get_guild(GUILD_ID)
         member = guild.get_member(self.applicant.id)
         if member:
@@ -90,9 +96,7 @@ class OfficerReviewView(View):
             await interaction.response.send_message(
                 f"✅ {self.applicant} has been given the Member role.", ephemeral=True
             )
-            # Optionally disable buttons
-            self.disable_all_items()
-            await interaction.message.edit(view=self)
+            await interaction.message.delete()
         else:
             await interaction.response.send_message(
                 "❌ Member not found.", ephemeral=True
@@ -103,26 +107,14 @@ class OfficerReviewView(View):
         try:
             await self.applicant.send("❌ Your application was declined.")
         except discord.Forbidden:
-            pass  # user has DMs closed
+            pass
         await interaction.response.send_message(
             f"❌ {self.applicant}'s application declined.", ephemeral=True
         )
-        self.disable_all_items()
-        await interaction.message.edit(view=self)
+        await interaction.message.delete()
 
 # ======================================
-# Button view for users
-# ======================================
-class SimpleButtonView(View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label="Create Ticket", style=discord.ButtonStyle.green)
-    async def button_callback(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_modal(ApplicationModal(interaction.user))
-
-# ======================================
-# Slash command
+# Slash command to send the embed in apply-here channel
 # ======================================
 @bot.tree.command(
     name="send_embed",
@@ -132,14 +124,14 @@ class SimpleButtonView(View):
 async def send_embed(interaction: discord.Interaction):
     embed = discord.Embed(
         title="Guild Recruitment – Apply Here",
-        description="Click the button below to submit your application. Officers will review your submission shortly.",
+        description="Click the button below to submit your application. An officer will review your ticket shortly.",
         color=discord.Color.green()
     )
     view = SimpleButtonView()
     await interaction.response.send_message(embed=embed, view=view)
 
 # ======================================
-# on_ready
+# Bot ready
 # ======================================
 @bot.event
 async def on_ready():
@@ -152,7 +144,7 @@ async def on_ready():
         print(f"Failed to sync commands: {e}")
 
 # ======================================
-# Run
+# Run bot + Flask server
 # ======================================
 if __name__ == "__main__":
     threading.Thread(target=run_server, daemon=True).start()

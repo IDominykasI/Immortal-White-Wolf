@@ -22,8 +22,8 @@ def run_server():
 # Discord bot
 # ======================================
 GUILD_ID = 1183116557505798324  # your server ID
-APPLICATIONS_CHANNEL_ID = 123456789012345678  # replace with your applications channel ID
-MEMBER_ROLE_ID = 987654321098765432  # replace with the Member role ID
+APPLICATIONS_CHANNEL_ID = 1439593741898747915  # replace with your applications channel ID
+MEMBER_ROLE_ID = 1183366708073877566  # replace with the Member role ID
 
 intents = discord.Intents.default()
 intents.message_content = True

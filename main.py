@@ -29,7 +29,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True  # needed to assign roles
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="/", intents=intents)
 
 # ======================================
 # Modal (10-question form)

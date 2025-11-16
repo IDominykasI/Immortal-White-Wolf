@@ -99,11 +99,11 @@ class SimpleButtonView(View):
 # Slash command to send embed
 # ======================================
 @bot.tree.command(
-    name="send_embed",
+    name="Guild_Application",
     description="Send an embed with a button",
     guild=discord.Object(GUILD_ID)
 )
-async def send_embed(interaction: discord.Interaction):
+async def Guild_Applicationd(interaction: discord.Interaction):
     embed = discord.Embed(
         title="Guild Recruitment – Apply Here",
         description="Click the button below to submit your application. Officers will review it shortly.",

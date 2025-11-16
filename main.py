@@ -1,81 +1,96 @@
+import os
 import discord
 from discord.ext import commands
+from discord.ui import View, Button, Modal, TextInput
 
-# ===== CONFIG =====
-TOKEN = "MTQzOTU5NzM4NjM0NjI2Njc5Nw.GmO4tA.lLwmN_TiZcUFtwcbvxLdoGpUIoEEKttyiboKcs"
-GUILD_ID = 1183116557505798324  # tavo serverio ID
-APPLY_CHANNEL_ID = 1439589588623429816  # 📢│apply-here kanalas
-APPLICATIONS_CHANNEL_ID = 1439593741898747915  # 🔒│applications kanalas
-
-# ===== INTENTS =====
+# =======================
+# Intents ir bot
+# =======================
 intents = discord.Intents.default()
-intents.members = True
-intents.messages = True
+intents.message_content = True
 intents.guilds = True
-intents.dm_messages = True
+intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+tree = bot.tree
 
-# ===== BUTTON =====
-class ApplyButton(discord.ui.View):
+# =======================
+# Globalūs duomenys
+# =======================
+applications = {}  # Laikys paraiškas: {user_id: {character_name, reason, status}}
+
+# =======================
+# Modal paraiškai
+# =======================
+class ApplicationModal(Modal):
     def __init__(self):
-        super().__init__(timeout=None)  # view niekada nebeexpire
-        self.add_item(discord.ui.Button(label="Apply", style=discord.ButtonStyle.primary, custom_id="apply_button"))
+        super().__init__(title="Guild Application")
+        self.add_item(TextInput(label="Character name", placeholder="Enter your character's name"))
+        self.add_item(TextInput(label="Why do you want to join?", style=discord.TextStyle.paragraph))
 
-    @discord.ui.button(label="Apply", style=discord.ButtonStyle.primary, custom_id="apply_button")
-    async def apply(self, button: discord.ui.Button, interaction: discord.Interaction):
-        await interaction.response.send_message("Sveikas! Atsakyk į kelis klausimus DM.", ephemeral=True)
-        try:
-            dm = await interaction.user.create_dm()
-            
-            # Formos klausimai
-            questions = [
-                "Koks tavo vardas?",
-                "Kiek tau metų?",
-                "Kodėl nori prisijungti prie gildijos?",
-                "Ar turi patirties su žaidimu / gildijos veikla?"
-            ]
-            
-            answers = []
-            for q in questions:
-                await dm.send(q)
-                
-                def check(m):
-                    return m.author == interaction.user and isinstance(m.channel, discord.DMChannel)
-                
-                msg = await bot.wait_for("message", check=check, timeout=300)  # 5 min limitas
-                answers.append(msg.content)
-            
-            # Siunčiame atsakymus į applications kanalą
-            guild = bot.get_guild(GUILD_ID)
-            applications_channel = guild.get_channel(APPLICATIONS_CHANNEL_ID)
-            embed = discord.Embed(title="Nauja Application forma", color=discord.Color.green())
-            embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
-            for i, q in enumerate(questions):
-                embed.add_field(name=q, value=answers[i], inline=False)
-            
-            await applications_channel.send(embed=embed)
-            await dm.send("Tavo atsakymai buvo sėkmingai pateikti gildijos officeriams.")
-        
-        except Exception as e:
-            print(e)
-            await interaction.user.send("Įvyko klaida siunčiant formą. Bandyk vėliau.")
+    async def on_submit(self, interaction: discord.Interaction):
+        user_id = interaction.user.id
+        applications[user_id] = {
+            "character_name": self.children[0].value,
+            "reason": self.children[1].value,
+            "status": "pending"
+        }
 
-# ===== EVENTS =====
+        await interaction.response.send_message("✅ Application submitted!", ephemeral=True)
+
+        # Siųsti embed į moderatorių channel
+        channel = discord.utils.get(interaction.guild.text_channels, name="applications")
+        if channel:
+            embed = discord.Embed(
+                title=f"New Application from {interaction.user}",
+                color=discord.Color.blue()
+            )
+            embed.add_field(name="Character", value=self.children[0].value)
+            embed.add_field(name="Reason", value=self.children[1].value)
+            await channel.send(embed=embed, view=ApplicationApprovalView(user_id))
+
+# =======================
+# View moderatoriui
+# =======================
+class ApplicationApprovalView(View):
+    def __init__(self, user_id):
+        super().__init__(timeout=None)
+        self.user_id = user_id
+
+    @discord.ui.button(label="Accept", style=discord.ButtonStyle.green)
+    async def accept(self, interaction: discord.Interaction, button: Button):
+        if self.user_id not in applications:
+            await interaction.response.send_message("⚠️ Application not found!", ephemeral=True)
+            return
+        applications[self.user_id]["status"] = "accepted"
+        await interaction.response.send_message(f"✅ Application accepted for <@{self.user_id}>", ephemeral=False)
+
+    @discord.ui.button(label="Reject", style=discord.ButtonStyle.red)
+    async def reject(self, interaction: discord.Interaction, button: Button):
+        if self.user_id not in applications:
+            await interaction.response.send_message("⚠️ Application not found!", ephemeral=True)
+            return
+        applications[self.user_id]["status"] = "rejected"
+        await interaction.response.send_message(f"❌ Application rejected for <@{self.user_id}>", ephemeral=False)
+
+# =======================
+# Slash komanda paraiškai
+# =======================
+@tree.command(name="apply", description="Submit a guild application")
+async def apply(interaction: discord.Interaction):
+    await interaction.response.send_modal(ApplicationModal())
+
+# =======================
+# Įvykiai
+# =======================
 @bot.event
 async def on_ready():
-    print(f"Prisijungta kaip {bot.user}")
-    guild = bot.get_guild(GUILD_ID)
-    channel = guild.get_channel(APPLY_CHANNEL_ID)
+    print(f"Bot logged in as {bot.user}")
+    await tree.sync()
+    print("Slash commands synchronized.")
 
-    # Sukuriame arba atnaujiname žinutę su mygtuku
-    async for message in channel.history(limit=100):
-        if message.author == bot.user:
-            await message.edit(content="Spauskite mygtuką norėdami pildyti application formą:", view=ApplyButton())
-            break
-    else:
-        await channel.send("Spauskite mygtuką norėdami pildyti application formą:", view=ApplyButton())
-
-# ===== RUN BOT =====
-bot.run(TOKEN)
-
+# =======================
+# Paleidimas
+# =======================
+if __name__ == "__main__":
+    bot.run(os.environ["DISCORD_TOKEN"])

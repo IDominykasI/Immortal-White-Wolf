@@ -3,21 +3,21 @@ import threading
 import discord
 from discord.ext import commands
 from discord.ui import View, Button, Modal, TextInput
-from fastapi import FastAPI
-import uvicorn
+from flask import Flask
 
 # =======================
-# Minimalus HTTP serveris Render
+# Minimalus HTTP serveris Render (Flask)
 # =======================
-app = FastAPI()
+app = Flask(__name__)
 
-@app.get("/")
-async def root():
-    return {"status": "ok"}
+@app.route("/", methods=["GET", "HEAD"])
+def root():
+    return {"status": "ok"}, 200
 
 def run_server():
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    # Flask veikia su threaded=True, kad boto event loop nebūtų blokuojamas
+    app.run(host="0.0.0.0", port=port, threaded=True)
 
 # =======================
 # Intents ir bot
@@ -123,7 +123,6 @@ async def send_application_embed(interaction: discord.Interaction):
 @bot.event
 async def on_ready():
     print(f"Bot logged in as {bot.user}")
-    # Globali sinchronizacija visiems guildams (nebūtina, bet gali būti)
     try:
         await bot.tree.sync()
         print("Global slash commands synchronized.")

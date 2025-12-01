@@ -1,142 +1,233 @@
 import os
-import threading
 import discord
 from discord.ext import commands
-from discord.ui import View, Button, Modal, TextInput
+from discord import app_commands
+from discord.ui import View, Select, Button
+from threading import Thread
 from flask import Flask
 
-# ======================================
-# Flask server (Render keep-alive)
-# ======================================
+# =======================
+# Flask dalis (Web service)
+# =======================
 app = Flask(__name__)
 
-@app.route("/", methods=["GET", "HEAD"])
-def root():
-    return {"status": "ok"}, 200
+@app.route("/")
+def home():
+    return "Bot is running!"
 
-def run_server():
-    port = int(os.environ.get("PORT", 8000))
-    app.run(host="0.0.0.0", port=port, threaded=True)
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
 
-# ======================================
-# Discord bot
-# ======================================
-GUILD_ID = 1183116557505798324  # your server ID
-APPLICATIONS_CHANNEL_ID = 1439593741898747915  # replace with your applications channel ID
-MEMBER_ROLE_ID = 1183366708073877566  # replace with the Member role ID
+# =======================
+# Globalūs duomenys
+# =======================
+splits = {}
 
+# =======================
+# Discord dalis
+# =======================
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = True  # needed to assign roles
+intents.messages = True
+intents.guilds = True
+intents.members = True
 
-bot = commands.Bot(command_prefix="/", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
+tree = bot.tree
 
-# ======================================
-# Modal (10-question form)
-# ======================================
-class ApplicationModal(Modal):
-    def __init__(self, applicant: discord.Member):
-        super().__init__(title="Guild Application Form")
-        self.applicant = applicant
-
-        self.add_item(TextInput(label="1. What's your in-game name?", style=discord.TextStyle.short))
-        self.add_item(TextInput(label="2. What's your total fame?", style=discord.TextStyle.short))
-        self.add_item(TextInput(label="3. What role do you usually play?", style=discord.TextStyle.short))
-        self.add_item(TextInput(label="4. How many days per week are you active?", style=discord.TextStyle.short))
-        self.add_item(TextInput(label="5. Are you willing to participate in PvP?", style=discord.TextStyle.short))
-        self.add_item(TextInput(label="6. Are you willing to participate in PvE?", style=discord.TextStyle.short))
-        self.add_item(TextInput(label="7. Are you willing to participate in guild objectives?", style=discord.TextStyle.short))
-        self.add_item(TextInput(label="8. Are you able to use microphone?", style=discord.TextStyle.short))
-        self.add_item(TextInput(label="9. Do you have any VODs/clips of your gameplay?", style=discord.TextStyle.short))
-        self.add_item(TextInput(label="10. Why do you want to join our guild?", style=discord.TextStyle.paragraph))
-
-    async def on_submit(self, interaction: discord.Interaction):
-        answers = "\n".join([f"**Q{i+1}:** {item.value}" for i, item in enumerate(self.children)])
-        channel = bot.get_channel(APPLICATIONS_CHANNEL_ID) or await bot.fetch_channel(APPLICATIONS_CHANNEL_ID)
-        embed = discord.Embed(
-            title="New Guild Application",
-            description=f"Applicant: {self.applicant.mention}\n\n{answers}",
-            color=discord.Color.green()
-        )
-        view = DecisionView(self.applicant)
-        await channel.send(embed=embed, view=view)
-        await interaction.response.send_message("✅ Your application has been submitted!", ephemeral=True)
-
-# ======================================
-# Decision View (Accept/Decline)
-# ======================================
-class DecisionView(View):
-    def __init__(self, applicant: discord.Member):
+# =======================
+# Mygtukų + dropdown View
+# =======================
+class SplitView(View):
+    def __init__(self, split_id: str, starter_id: int, guild: discord.Guild):
         super().__init__(timeout=None)
-        self.applicant = applicant
+        self.split_id = split_id
+        self.starter_id = starter_id
+        self.guild = guild
 
-    @discord.ui.button(label="Accept", style=discord.ButtonStyle.green)
-    async def accept(self, interaction: discord.Interaction, button: Button):
-        role = interaction.guild.get_role(MEMBER_ROLE_ID)
-        if role:
-            try:
-                await self.applicant.add_roles(role)
-                await self.applicant.send("🎉 Your application has been accepted! You now have the Member role.")
-            except discord.Forbidden:
-                await interaction.response.send_message("❌ Cannot assign role or DM the applicant.", ephemeral=True)
-                return
-        await interaction.message.delete()
-        await interaction.response.send_message("Application accepted!", ephemeral=True)
+        if split_id in splits:
+            member_options = []
+            for uid, taken in splits[split_id]["members"].items():
+                # visada rodom dropdown, net jeigu jau pažymėtas
+                member = guild.get_member(int(uid))
+                name = member.display_name if member else f"User {uid}"
+                label = f"{name} {'✅' if taken else '❌'}"
+                member_options.append(discord.SelectOption(label=label, value=uid))
 
-    @discord.ui.button(label="Decline", style=discord.ButtonStyle.red)
-    async def decline(self, interaction: discord.Interaction, button: Button):
-        try:
-            await self.applicant.send("❌ Your application has been declined.")
-        except discord.Forbidden:
-            await interaction.response.send_message("❌ Cannot DM the applicant.", ephemeral=True)
+            select = Select(
+                placeholder="Select a player...",
+                options=member_options,
+                custom_id=f"select_{split_id}"
+            )
+            select.callback = self.select_callback
+            self.add_item(select)
+
+            check_button = Button(
+                label="Check",
+                style=discord.ButtonStyle.success,
+                custom_id=f"check_{split_id}"
+            )
+            check_button.callback = self.check_callback
+            self.add_item(check_button)
+
+    async def select_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.starter_id:
+            await interaction.response.send_message(
+                "❌ Only the split creator can select players!",
+                ephemeral=True
+            )
             return
-        await interaction.message.delete()
-        await interaction.response.send_message("Application declined!", ephemeral=True)
 
-# ======================================
-# Button View (Send modal)
-# ======================================
-class SimpleButtonView(View):
-    def __init__(self):
-        super().__init__(timeout=None)
+        selected_uid = interaction.data["values"][0]
+        splits[self.split_id]["selected"] = selected_uid
+        await interaction.response.send_message(
+            f"✅ Selected <@{selected_uid}> for update. Now press **Check** to confirm.",
+            ephemeral=True
+        )
 
-    @discord.ui.button(label="Create Ticket", style=discord.ButtonStyle.green)
-    async def button_callback(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_modal(ApplicationModal(interaction.user))
+    async def check_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.starter_id:
+            await interaction.response.send_message(
+                "❌ Only the split creator can use this button!",
+                ephemeral=True
+            )
+            return
 
-# ======================================
-# Slash command to send embed
-# ======================================
-@bot.tree.command(
-    name="guild_application",
-    description="Send an embed with a button",
-    guild=discord.Object(GUILD_ID)
-)
-async def guild_application(interaction: discord.Interaction):
-    embed = discord.Embed(
-        title="Guild Recruitment – Apply Here",
-        description="Click the button below to submit your application. Officers will review it shortly.",
-        color=discord.Color.green()
-    )
-    view = SimpleButtonView()
-    await interaction.response.send_message(embed=embed, view=view)
+        split = splits.get(self.split_id)
+        if not split or "selected" not in split:
+            await interaction.response.send_message(
+                "⚠️ No player selected yet!",
+                ephemeral=True
+            )
+            return
 
-# ======================================
-# on_ready
-# ======================================
+        uid = split["selected"]
+        split["members"][uid] = True
+        del split["selected"]
+
+        channel = bot.get_channel(split["channel_id"])
+        msg = await channel.fetch_message(split["message_id"])
+        embed = msg.embeds[0]
+
+        new_value = ""
+        for member_id, taken in split["members"].items():
+            member = channel.guild.get_member(int(member_id))
+            status = "✅" if taken else "❌"
+            new_value += f"**{member.display_name if member else member_id}**\nShare: {split['each']}M | Status: {status}\n"
+
+        embed.set_field_at(index=3, name="Players", value=new_value, inline=False)
+        await msg.edit(embed=embed, view=SplitView(self.split_id, self.starter_id, channel.guild))
+
+        if all(split["members"].values()):
+            await channel.send("✅ All players have taken their split, this split is now closed!")
+            del splits[self.split_id]
+
+        await interaction.response.defer()
+
+# =======================
+# Įvykiai
+# =======================
 @bot.event
 async def on_ready():
-    print(f"Bot logged in as {bot.user}")
-    guild = discord.Object(GUILD_ID)
+    print(f"Joined as {bot.user}")
     try:
-        await bot.tree.sync(guild=guild)
-        print("Slash commands synced for this guild ONLY.")
+        synced = await tree.sync()
+        print(f"Slash commands synchronized ({len(synced)})")
     except Exception as e:
-        print(f"Failed to sync commands: {e}")
+        print(e)
 
-# ======================================
-# Run bot
-# ======================================
+# =======================
+# Komandos
+# =======================
+@tree.command(name="split", description="Start loot split")
+async def split(interaction: discord.Interaction, amount: float, members: str):
+    guild = interaction.guild
+    user_mentions = [m.strip() for m in members.split()]
+    selected_members = []
+
+    for m in user_mentions:
+        if m.startswith("<@") and m.endswith(">"):
+            user_id = int(m[2:-1].replace("!", ""))
+            member = guild.get_member(user_id)
+            if member:
+                selected_members.append(member)
+
+    if not selected_members:
+        await interaction.response.send_message("No valid members specified!", ephemeral=True)
+        return
+
+    per_share = round(amount / len(selected_members), 2)
+
+    embed = discord.Embed(
+        title="💰 Loot Distribution in Progress 💰",
+        color=discord.Color.gold()
+    )
+    embed.add_field(name="Total split amount", value=f"💰 {amount}M", inline=False)
+    embed.add_field(name="Each player's share", value=f"💰 {per_share}M", inline=False)
+    embed.add_field(name="📣 Started by", value=interaction.user.mention, inline=False)
+
+    status_text = ""
+    for m in selected_members:
+        status_text += f"**{m.display_name}**\nShare: {per_share}M | Status: ❌\n"
+
+    embed.add_field(name="Players", value=status_text, inline=False)
+    embed.set_footer(text="📸 Submit loot screenshots to confirm participation!")
+
+    # Sukuriame view iškart
+    splits[str(interaction.id)] = {
+        "members": {str(m.id): False for m in selected_members},
+        "amount": amount,
+        "each": per_share,
+        "message_id": None,  # įrašysime vėliau
+        "channel_id": interaction.channel.id,
+        "starter": interaction.user.id
+    }
+
+    view = SplitView(str(interaction.id), interaction.user.id, guild)
+    msg = await interaction.channel.send(
+        content=f"Hello {' '.join(m.mention for m in selected_members)}, you are part of this loot split.",
+        embed=embed,
+        view=view
+    )
+
+    splits[str(interaction.id)]["message_id"] = msg.id
+
+    await interaction.response.send_message("✅ Split created!", ephemeral=True)
+
+@bot.event
+async def on_message(message):
+    await bot.process_commands(message)
+
+    if message.author.bot or not message.attachments:
+        return
+
+    for split_id, data in list(splits.items()):
+        if message.channel.id != data["channel_id"]:
+            continue
+        if str(message.author.id) in data["members"] and not data["members"][str(message.author.id)]:
+            data["members"][str(message.author.id)] = True
+            await message.add_reaction("✅")
+
+            msg = await message.channel.fetch_message(data["message_id"])
+            embed = msg.embeds[0]
+
+            new_value = ""
+            for uid, taken in data["members"].items():
+                member = message.guild.get_member(int(uid))
+                status = "✅" if taken else "❌"
+                new_value += f"**{member.display_name if member else uid}**\nShare: {data['each']}M | Status: {status}\n"
+
+            embed.set_field_at(index=3, name="Players", value=new_value, inline=False)
+            await msg.edit(embed=embed, view=SplitView(split_id, data["starter"], message.guild))
+
+            if all(data["members"].values()):
+                await message.channel.send("✅ All players have taken their split, this split is now closed!")
+                del splits[split_id]
+
+# =======================
+# Paleidimas
+# =======================
 if __name__ == "__main__":
-    threading.Thread(target=run_server, daemon=True).start()
+    Thread(target=run_flask).start()
     bot.run(os.environ["DISCORD_TOKEN"])

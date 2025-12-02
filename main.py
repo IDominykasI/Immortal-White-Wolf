@@ -89,12 +89,12 @@ async def split(
         color=discord.Color.gold()
     )
     embed.add_field(name="📣 Started by", value=interaction.user.mention, inline=False)
-    embed.add_field(name="Total estimated value", value=f"{total_amount}M", inline=False)
-    embed.add_field(name="Guild buys for", value=f"{percentage}% of estimated value", inline=False)
-    embed.add_field(name="Repairs", value=f"{repairs}M", inline=False)
-    embed.add_field(name="Accounting fees", value=f"{accounting}M", inline=False)
-    embed.add_field(name="Final amount to split", value=f"{final_amount}M", inline=False)
-    embed.add_field(name="Each player's share", value=f"{per_share}M", inline=False)
+    embed.add_field(name="Total estimated value", value=f"💰 {total_amount}M", inline=False)
+    embed.add_field(name="Guild buys for", value=f"💳 {percentage}% of estimated value", inline=False)
+    embed.add_field(name="Repairs", value=f"🔧 {repairs}M", inline=False)
+    embed.add_field(name="Accounting fees", value=f"📘 {accounting}M", inline=False)
+    embed.add_field(name="Final amount to split", value=f"💰 {final_amount}M", inline=False)
+    embed.add_field(name="Each player's share", value=f"💸 {per_share}M", inline=False)
 
     # Save split data (minimal)
     split_id = str(interaction.id)
@@ -106,7 +106,7 @@ async def split(
     }
 
     msg = await interaction.channel.send(
-        content=f"Hello {' '.join(m.mention for m in selected_members)}, the split has started.",
+        content=f"Hello {' '.join(m.mention for m in selected_members)}, you are part of this split.",
         embed=embed,
     )
 

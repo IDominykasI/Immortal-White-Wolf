@@ -102,13 +102,13 @@ async def split(
         title="💰 Loot Split Breakdown 💰",
         color=discord.Color.gold()
     )
+    embed.add_field(name="📣 Started by", value=interaction.user.mention, inline=False)
     embed.add_field(name="Total split amount", value=f"💰 {total_amount}M", inline=False)
     embed.add_field(name="Guild buys for", value=f"{percentage}% of estimated value", inline=False)
     embed.add_field(name="Repairs", value=f"🔧 {repairs}M", inline=False)
     embed.add_field(name="Accounting fees", value=f"📘 {accounting}M", inline=False)
     embed.add_field(name="Final amount to split", value=f"💵 {final_amount}M", inline=False)
     embed.add_field(name="Each player's share", value=f"💰 {per_share}M", inline=False)
-    embed.add_field(name="📣 Started by", value=interaction.user.mention, inline=False)
 
     # Players list
     status_text = ""

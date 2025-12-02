@@ -68,6 +68,7 @@ async def on_ready():
 async def split(
     interaction: discord.Interaction,
     total_amount: float,
+    percentage: float,
     repairs: float,
     accounting: float,
     members: str
@@ -89,7 +90,7 @@ async def split(
         return
 
     # Calculate final amounts
-    final_amount = round(total_amount - repairs - accounting, 2)
+    final_amount = round((total_amount * percentage / 100) - repairs - accounting, 2)
     if final_amount < 0:
         await interaction.response.send_message("❌ Final amount cannot be negative!", ephemeral=True)
         return
@@ -102,6 +103,7 @@ async def split(
         color=discord.Color.gold()
     )
     embed.add_field(name="Total split amount", value=f"💰 {total_amount}M", inline=False)
+    embed.add_field(name="Guild buys for", value=f"{percentage}% of estimated value", inline=False)
     embed.add_field(name="Repairs", value=f"🔧 {repairs}M", inline=False)
     embed.add_field(name="Accounting fees", value=f"📘 {accounting}M", inline=False)
     embed.add_field(name="Final amount to split", value=f"💵 {final_amount}M", inline=False)
@@ -112,9 +114,6 @@ async def split(
     status_text = ""
     for m in selected_members:
         status_text += f"**{m.display_name}**\nShare: {per_share}M | Status: ❌\n"
-
-    embed.add_field(name="Players", value=status_text, inline=False)
-    embed.set_footer(text="📸 Upload your screenshot to confirm!")
 
     # Save split data
     split_id = str(interaction.id)

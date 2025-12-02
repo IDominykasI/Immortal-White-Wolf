@@ -2,12 +2,12 @@ import os
 import discord
 from discord.ext import commands
 from discord import app_commands
-from discord.ui import View, Select, Button
+from discord.ui import View
 from threading import Thread
 from flask import Flask
 
 # =======================
-# Flask dalis (Web service)
+# Flask (Web service)
 # =======================
 app = Flask(__name__)
 
@@ -20,12 +20,12 @@ def run_flask():
     app.run(host="0.0.0.0", port=port)
 
 # =======================
-# Globalūs duomenys
+# Global Data
 # =======================
 splits = {}
 
 # =======================
-# Discord dalis
+# Discord Bot Setup
 # =======================
 intents = discord.Intents.default()
 intents.message_content = True
@@ -37,7 +37,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
 # =======================
-# Mygtukų + dropdown View
+# EMPTY VIEW (NO BUTTONS / NO SELECT)
 # =======================
 class SplitView(View):
     def __init__(self, split_id: str, starter_id: int, guild: discord.Guild):
@@ -45,89 +45,11 @@ class SplitView(View):
         self.split_id = split_id
         self.starter_id = starter_id
         self.guild = guild
-
-        if split_id in splits:
-            member_options = []
-            for uid, taken in splits[split_id]["members"].items():
-                member = guild.get_member(int(uid))
-                name = member.display_name if member else f"User {uid}"
-                label = f"{name} {'✅' if taken else '❌'}"
-                member_options.append(discord.SelectOption(label=label, value=uid))
-
-            select = Select(
-                placeholder="Select a player...",
-                options=member_options,
-                custom_id=f"select_{split_id}"
-            )
-            select.callback = self.select_callback
-            self.add_item(select)
-
-            check_button = Button(
-                label="Check",
-                style=discord.ButtonStyle.success,
-                custom_id=f"check_{split_id}"
-            )
-            check_button.callback = self.check_callback
-            self.add_item(check_button)
-
-    async def select_callback(self, interaction: discord.Interaction):
-        if interaction.user.id != self.starter_id:
-            await interaction.response.send_message(
-                "❌ Only the split creator can select players!",
-                ephemeral=True
-            )
-            return
-
-        selected_uid = interaction.data["values"][0]
-        splits[self.split_id]["selected"] = selected_uid
-        await interaction.response.send_message(
-            f"✅ Selected <@{selected_uid}>. Now press **Check**.",
-            ephemeral=True
-        )
-
-    async def check_callback(self, interaction: discord.Interaction):
-        if interaction.user.id != self.starter_id:
-            await interaction.response.send_message(
-                "❌ Only the split creator can use this!",
-                ephemeral=True
-            )
-            return
-
-        split = splits.get(self.split_id)
-        if not split or "selected" not in split:
-            await interaction.response.send_message(
-                "⚠️ No player selected!",
-                ephemeral=True
-            )
-            return
-
-        uid = split["selected"]
-        split["members"][uid] = True
-        del split["selected"]
-
-        channel = bot.get_channel(split["channel_id"])
-        msg = await channel.fetch_message(split["message_id"])
-        embed = msg.embeds[0]
-
-        # Rebuild players list
-        new_value = ""
-        for member_id, taken in split["members"].items():
-            member = channel.guild.get_member(int(member_id))
-            status = "✅" if taken else "❌"
-            new_value += f"**{member.display_name if member else member_id}**\nShare: {split['each']}M | Status: {status}\n"
-
-        embed.set_field_at(index=5, name="Players", value=new_value, inline=False)
-        await msg.edit(embed=embed, view=SplitView(self.split_id, self.starter_id, channel.guild))
-
-        if all(split["members"].values()):
-            await channel.send("✅ All players confirmed! Split is now closed!")
-            del splits[self.split_id]
-
-        await interaction.response.defer()
+        # No UI elements added
 
 
 # =======================
-# Įvykiai
+# Events
 # =======================
 @bot.event
 async def on_ready():
@@ -140,7 +62,7 @@ async def on_ready():
 
 
 # =======================
-# PADARYTA NAUJA /split KOMANDA
+# /split COMMAND
 # =======================
 @tree.command(name="split", description="Start loot split")
 async def split(
@@ -166,7 +88,7 @@ async def split(
         await interaction.response.send_message("No valid members specified!", ephemeral=True)
         return
 
-    # Final amount after deductions
+    # Calculate final amounts
     final_amount = round(total_amount - repairs - accounting, 2)
     if final_amount < 0:
         await interaction.response.send_message("❌ Final amount cannot be negative!", ephemeral=True)
@@ -208,8 +130,9 @@ async def split(
         "starter": interaction.user.id
     }
 
-    # Create view
+    # Empty view (no buttons)
     view = SplitView(split_id, interaction.user.id, guild)
+
     msg = await interaction.channel.send(
         content=f"Hello {' '.join(m.mention for m in selected_members)}, the split has started.",
         embed=embed,
@@ -222,7 +145,7 @@ async def split(
 
 
 # =======================
-# Screenshot patvirtinimas
+# Screenshot Confirmation
 # =======================
 @bot.event
 async def on_message(message):
@@ -235,6 +158,7 @@ async def on_message(message):
         if message.channel.id != data["channel_id"]:
             continue
 
+        # User must be part of split and not confirmed yet
         if str(message.author.id) in data["members"] and not data["members"][str(message.author.id)]:
             data["members"][str(message.author.id)] = True
             await message.add_reaction("✅")
@@ -242,6 +166,7 @@ async def on_message(message):
             msg = await message.channel.fetch_message(data["message_id"])
             embed = msg.embeds[0]
 
+            # Rebuild player list
             new_value = ""
             for uid, taken in data["members"].items():
                 member = message.guild.get_member(int(uid))
@@ -249,15 +174,18 @@ async def on_message(message):
                 new_value += f"**{member.display_name if member else uid}**\nShare: {data['each']}M | Status: {status}\n"
 
             embed.set_field_at(index=5, name="Players", value=new_value, inline=False)
-            await msg.edit(embed=embed, view=SplitView(split_id, data["starter"], message.guild))
 
+            # Update message WITHOUT view (no buttons)
+            await msg.edit(embed=embed)
+
+            # Close split when all confirmed
             if all(data["members"].values()):
                 await message.channel.send("✅ All players confirmed! Split is now closed!")
                 del splits[split_id]
 
 
 # =======================
-# Paleidimas
+# Run
 # =======================
 if __name__ == "__main__":
     Thread(target=run_flask).start()

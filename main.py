@@ -37,7 +37,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
 # =======================
-# EMPTY VIEW (NO BUTTONS / NO SELECT)
+# EMPTY VIEW (NO BUTTONS)
 # =======================
 class SplitView(View):
     def __init__(self, split_id: str, starter_id: int, guild: discord.Guild):
@@ -45,7 +45,7 @@ class SplitView(View):
         self.split_id = split_id
         self.starter_id = starter_id
         self.guild = guild
-        # No UI elements added
+        # No UI elements
 
 
 # =======================
@@ -64,7 +64,7 @@ async def on_ready():
 # =======================
 # /split COMMAND
 # =======================
-@tree.command(name="split", description="Start loot split")
+@tree.command(name="/split", description="Start loot split")
 async def split(
     interaction: discord.Interaction,
     total_amount: float,
@@ -88,7 +88,7 @@ async def split(
         await interaction.response.send_message("No valid members specified!", ephemeral=True)
         return
 
-    # Calculate final amounts
+    # Calculate amounts
     final_amount = round(total_amount - repairs - accounting, 2)
     if final_amount < 0:
         await interaction.response.send_message("❌ Final amount cannot be negative!", ephemeral=True)
@@ -96,7 +96,7 @@ async def split(
 
     per_share = round(final_amount / len(selected_members), 2)
 
-    # Build embed
+    # Build embed (NO PLAYER LIST)
     embed = discord.Embed(
         title="💰 Loot Split Breakdown 💰",
         color=discord.Color.gold()
@@ -107,14 +107,6 @@ async def split(
     embed.add_field(name="Final amount to split", value=f"💵 {final_amount}M", inline=False)
     embed.add_field(name="Each player's share", value=f"💰 {per_share}M", inline=False)
     embed.add_field(name="📣 Started by", value=interaction.user.mention, inline=False)
-
-    # Players list
-    status_text = ""
-    for m in selected_members:
-        status_text += f"**{m.display_name}**\nShare: {per_share}M | Status: ❌\n"
-
-    embed.add_field(name="Players", value=status_text, inline=False)
-    embed.set_footer(text="📸 Upload your screenshot to confirm!")
 
     # Save split data
     split_id = str(interaction.id)
@@ -130,7 +122,6 @@ async def split(
         "starter": interaction.user.id
     }
 
-    # Empty view (no buttons)
     view = SplitView(split_id, interaction.user.id, guild)
 
     msg = await interaction.channel.send(
@@ -142,47 +133,6 @@ async def split(
     splits[split_id]["message_id"] = msg.id
 
     await interaction.response.send_message("✅ Split created!", ephemeral=True)
-
-
-# =======================
-# Screenshot Confirmation
-# =======================
-@bot.event
-async def on_message(message):
-    await bot.process_commands(message)
-
-    if message.author.bot or not message.attachments:
-        return
-
-    for split_id, data in list(splits.items()):
-        if message.channel.id != data["channel_id"]:
-            continue
-
-        # User must be part of split and not confirmed yet
-        if str(message.author.id) in data["members"] and not data["members"][str(message.author.id)]:
-            data["members"][str(message.author.id)] = True
-            await message.add_reaction("✅")
-
-            msg = await message.channel.fetch_message(data["message_id"])
-            embed = msg.embeds[0]
-
-            # Rebuild player list
-            new_value = ""
-            for uid, taken in data["members"].items():
-                member = message.guild.get_member(int(uid))
-                status = "✅" if taken else "❌"
-                new_value += f"**{member.display_name if member else uid}**\nShare: {data['each']}M | Status: {status}\n"
-
-            embed.set_field_at(index=5, name="Players", value=new_value, inline=False)
-
-            # Update message WITHOUT view (no buttons)
-            await msg.edit(embed=embed)
-
-            # Close split when all confirmed
-            if all(data["members"].values()):
-                await message.channel.send("✅ All players confirmed! Split is now closed!")
-                del splits[split_id]
-
 
 # =======================
 # Run

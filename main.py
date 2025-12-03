@@ -48,7 +48,7 @@ async def on_ready():
 # ============================================================
 # /balance COMMAND — check how much money the user has
 # ============================================================
-@tree.command(name="balance", description="Pažiūrėti kiek turi pinigų")
+@tree.command(name="balance", description="Check how much money you have")
 async def balance(interaction: discord.Interaction, user: discord.Member = None):
 
     # Jei user nepaduotas – rodo paties vartotojo balansą
@@ -58,14 +58,14 @@ async def balance(interaction: discord.Interaction, user: discord.Member = None)
     amount = balances.get(user_id, 0)
 
     await interaction.response.send_message(
-        f"💰 **{target.display_name}** turi **{amount}M**",
+        f"💰 **{target.display_name}** has **{amount}M**",
         ephemeral=True
     )
 
 # ============================================================
 # /add_money COMMAND — Officer ONLY
 # ============================================================
-@tree.command(name="add_money", description="Pridėti pinigų vartotojui (Officer only)")
+@tree.command(name="add-money", description="Add-money (Officer only)")
 async def add_money(
     interaction: discord.Interaction,
     user: discord.Member,
@@ -76,7 +76,7 @@ async def add_money(
     officer_role = discord.utils.get(interaction.guild.roles, name="Officer")
     if officer_role not in interaction.user.roles:
         await interaction.response.send_message(
-            "❌ Šią komandą gali naudoti tik **Officer** rolės nariai!",
+            "❌ This command can only be used by **Officers**!",
             ephemeral=True
         )
         return
@@ -86,14 +86,14 @@ async def add_money(
     balances[user_id] = balances.get(user_id, 0) + amount
 
     await interaction.response.send_message(
-        f"✅ Pridėjai **{amount}M** vartotojui {user.mention}. "
-        f"Dabar jis turi **{balances[user_id]}M**."
+        f"✅ Added **{amount}M** to {user.mention}. "
+        f"Now he has **{balances[user_id]}M**."
     )
 
 # ============================================================
 # /remove_money COMMAND — Officer ONLY
 # ============================================================
-@tree.command(name="remove_money", description="Nuimti pinigus vartotojui (Officer only)")
+@tree.command(name="remove-money", description="Remove-money (Officer only)")
 async def remove_money(
     interaction: discord.Interaction,
     user: discord.Member,
@@ -104,7 +104,7 @@ async def remove_money(
     officer_role = discord.utils.get(interaction.guild.roles, name="Officer")
     if officer_role not in interaction.user.roles:
         await interaction.response.send_message(
-            "❌ Šią komandą gali naudoti tik **Officer** rolės nariai!",
+            "❌ This command can only be used by **Officers**!",
             ephemeral=True
         )
         return
@@ -115,8 +115,8 @@ async def remove_money(
     # Cannot remove more than the user has
     if amount > current_balance:
         await interaction.response.send_message(
-            f"❌ {user.mention} turi tik **{current_balance}M**. "
-            f"Negalima nuimti **{amount}M**!",
+            f"❌ {user.mention} has only **{current_balance}M**. "
+            f"Can't remove **{amount}M**!",
             ephemeral=True
         )
         return
@@ -125,8 +125,8 @@ async def remove_money(
     balances[user_id] = current_balance - amount
 
     await interaction.response.send_message(
-        f"🟥 Nuėmei **{amount}M** iš {user.mention}. "
-        f"Dabar jis turi **{balances[user_id]}M**."
+        f"🟥 Removed **{amount}M** from {user.mention}. "
+        f"Now he has **{balances[user_id]}M**."
     )
 
 # ============================================================

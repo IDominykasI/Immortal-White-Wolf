@@ -21,17 +21,17 @@ def run_flask():
 # Global Data
 # =======================
 splits = {}
+balances = {}  # <<< money bank
 
 # =======================
 # Discord Bot Setup
 # =======================
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = True  # Needed for resolving mentions
+intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
-
 
 # =======================
 # Events
@@ -45,10 +45,93 @@ async def on_ready():
     except Exception as e:
         print("Sync error:", e)
 
+# ============================================================
+# /balance COMMAND — check how much money the user has
+# ============================================================
+@tree.command(name="balance", description="Pažiūrėti kiek turi pinigų")
+async def balance(interaction: discord.Interaction, user: discord.Member = None):
 
-# =======================
-# /split COMMAND
-# =======================
+    # Jei user nepaduotas – rodo paties vartotojo balansą
+    target = user or interaction.user
+    user_id = str(target.id)
+
+    amount = balances.get(user_id, 0)
+
+    await interaction.response.send_message(
+        f"💰 **{target.display_name}** turi **{amount}M**",
+        ephemeral=True
+    )
+
+# ============================================================
+# /add_money COMMAND — Officer ONLY
+# ============================================================
+@tree.command(name="add_money", description="Pridėti pinigų vartotojui (Officer only)")
+async def add_money(
+    interaction: discord.Interaction,
+    user: discord.Member,
+    amount: float
+):
+
+    # Officer role check
+    officer_role = discord.utils.get(interaction.guild.roles, name="Officer")
+    if officer_role not in interaction.user.roles:
+        await interaction.response.send_message(
+            "❌ Šią komandą gali naudoti tik **Officer** rolės nariai!",
+            ephemeral=True
+        )
+        return
+
+    # Add money
+    user_id = str(user.id)
+    balances[user_id] = balances.get(user_id, 0) + amount
+
+    await interaction.response.send_message(
+        f"✅ Pridėjai **{amount}M** vartotojui {user.mention}. "
+        f"Dabar jis turi **{balances[user_id]}M**."
+    )
+
+# ============================================================
+# /remove_money COMMAND — Officer ONLY
+# ============================================================
+@tree.command(name="remove_money", description="Nuimti pinigus vartotojui (Officer only)")
+async def remove_money(
+    interaction: discord.Interaction,
+    user: discord.Member,
+    amount: float
+):
+
+    # Officer role check
+    officer_role = discord.utils.get(interaction.guild.roles, name="Officer")
+    if officer_role not in interaction.user.roles:
+        await interaction.response.send_message(
+            "❌ Šią komandą gali naudoti tik **Officer** rolės nariai!",
+            ephemeral=True
+        )
+        return
+
+    user_id = str(user.id)
+    current_balance = balances.get(user_id, 0)
+
+    # Cannot remove more than the user has
+    if amount > current_balance:
+        await interaction.response.send_message(
+            f"❌ {user.mention} turi tik **{current_balance}M**. "
+            f"Negalima nuimti **{amount}M**!",
+            ephemeral=True
+        )
+        return
+
+    # Remove money
+    balances[user_id] = current_balance - amount
+
+    await interaction.response.send_message(
+        f"🟥 Nuėmei **{amount}M** iš {user.mention}. "
+        f"Dabar jis turi **{balances[user_id]}M**."
+    )
+
+# ============================================================
+# /split COMMAND — Your original code
+# ============================================================
 @tree.command(name="split", description="Start loot split")
 async def split(
     interaction: discord.Interaction,
@@ -62,7 +145,6 @@ async def split(
     user_mentions = [m.strip() for m in members.split()]
     selected_members = []
 
-    # Parse valid @mentions
     for m in user_mentions:
         if m.startswith("<@") and m.endswith(">"):
             user_id = int(m[2:-1].replace("!", ""))
@@ -74,7 +156,6 @@ async def split(
         await interaction.response.send_message("❌ No valid members specified!", ephemeral=True)
         return
 
-    # Calculate amounts
     final_amount = round((total_amount * percentage / 100) - repairs - accounting, 2)
 
     if final_amount < 0:
@@ -83,7 +164,6 @@ async def split(
 
     per_share = round(final_amount / len(selected_members), 2)
 
-    # Build embed (cleaned)
     embed = discord.Embed(
         title="💰 Loot Split Breakdown 💰",
         color=discord.Color.gold()
@@ -96,7 +176,6 @@ async def split(
     embed.add_field(name="Final amount to split", value=f"💰 {final_amount}M", inline=False)
     embed.add_field(name="Each player's share", value=f"💸 {per_share}M", inline=False)
 
-    # Save split data (minimal)
     split_id = str(interaction.id)
     splits[split_id] = {
         "members": {str(m.id): False for m in selected_members},
@@ -111,7 +190,6 @@ async def split(
     )
 
     splits[split_id]["message_id"] = msg.id
-
     await interaction.response.send_message("✅ Split created!", ephemeral=True)
 
 # =======================

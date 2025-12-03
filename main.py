@@ -65,7 +65,7 @@ async def balance(interaction: discord.Interaction, user: discord.Member = None)
 # ============================================================
 # /add_money COMMAND — Officer ONLY
 # ============================================================
-@tree.command(name="add-money", description="Add-money (Officer only)")
+@tree.command(name="add-money", description="Add money (Officer only)")
 async def add_money(
     interaction: discord.Interaction,
     user: discord.Member,
@@ -93,7 +93,7 @@ async def add_money(
 # ============================================================
 # /remove_money COMMAND — Officer ONLY
 # ============================================================
-@tree.command(name="remove-money", description="Remove-money (Officer only)")
+@tree.command(name="remove-money", description="Remove money (Officer only)")
 async def remove_money(
     interaction: discord.Interaction,
     user: discord.Member,

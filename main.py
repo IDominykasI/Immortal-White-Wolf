@@ -21,7 +21,13 @@ def run_flask():
 # Global Data
 # =======================
 splits = {}
-balances = {}  # <<< money bank
+balances = {}  # money bank
+
+# =======================
+# Number formatting
+# =======================
+def format_full(n):
+    return f"{int(n):,}"
 
 # =======================
 # Discord Bot Setup
@@ -46,65 +52,51 @@ async def on_ready():
         print("Sync error:", e)
 
 # ============================================================
-# /balance COMMAND — check how much money the user has
+# /balance
 # ============================================================
 @tree.command(name="balance", description="Check how much money you have")
 async def balance(interaction: discord.Interaction, user: discord.Member = None):
-
-    # Jei user nepaduotas – rodo paties vartotojo balansą
     target = user or interaction.user
     user_id = str(target.id)
-
     amount = balances.get(user_id, 0)
 
     await interaction.response.send_message(
-        f"💰 **{target.display_name}** has **{amount}M**",
+        f"💰 **{target.display_name}** has **{format_full(amount)}**",
         ephemeral=True
     )
 
 # ============================================================
-# /add_money COMMAND — Officer ONLY
+# /add-money — Officer only
 # ============================================================
 @tree.command(name="add-money", description="Add money (Officer only)")
-async def add_money(
-    interaction: discord.Interaction,
-    user: discord.Member,
-    amount: float
-):
+async def add_money(interaction: discord.Interaction, user: discord.Member, amount: int):
 
-    # Officer role check
     officer_role = discord.utils.get(interaction.guild.roles, name="Officer")
     if officer_role not in interaction.user.roles:
         await interaction.response.send_message(
-            "❌ This command can only be used by **Officers**!",
+            "❌ This command can only be used by Officers!",
             ephemeral=True
         )
         return
 
-    # Add money
     user_id = str(user.id)
     balances[user_id] = balances.get(user_id, 0) + amount
 
     await interaction.response.send_message(
-        f"✅ Added **{amount}M** to {user.mention}. "
-        f"Now he has **{balances[user_id]}M**."
+        f"✅ Added **{format_full(amount)}** to {user.mention}. "
+        f"Now he has **{format_full(balances[user_id])}**."
     )
 
 # ============================================================
-# /remove_money COMMAND — Officer ONLY
+# /remove-money — Officer only
 # ============================================================
 @tree.command(name="remove-money", description="Remove money (Officer only)")
-async def remove_money(
-    interaction: discord.Interaction,
-    user: discord.Member,
-    amount: float
-):
+async def remove_money(interaction: discord.Interaction, user: discord.Member, amount: int):
 
-    # Officer role check
     officer_role = discord.utils.get(interaction.guild.roles, name="Officer")
     if officer_role not in interaction.user.roles:
         await interaction.response.send_message(
-            "❌ This command can only be used by **Officers**!",
+            "❌ This command can only be used by Officers!",
             ephemeral=True
         )
         return
@@ -112,33 +104,27 @@ async def remove_money(
     user_id = str(user.id)
     current_balance = balances.get(user_id, 0)
 
-    # Cannot remove more than the user has
     if amount > current_balance:
         await interaction.response.send_message(
-            f"❌ {user.mention} has only **{current_balance}M**. "
-            f"Can't remove **{amount}M**!",
+            f"❌ {user.mention} has only **{format_full(current_balance)}**. "
+            f"Can't remove **{format_full(amount)}**!",
             ephemeral=True
         )
         return
 
-    # Remove money
     balances[user_id] = current_balance - amount
 
     await interaction.response.send_message(
-        f"🟥 Removed **{amount}M** from {user.mention}. "
-        f"Now he has **{balances[user_id]}M**."
+        f"🟥 Removed **{format_full(amount)}** from {user.mention}. "
+        f"Now he has **{format_full(balances[user_id])}**."
     )
 
 # ============================================================
-# /split COMMAND — Your original code
+# /split
 # ============================================================
 @tree.command(name="split", description="Start loot split")
-async def split(
-    interaction: discord.Interaction,
-    total_amount: float,
-    repairs: float,
-    members: str
-):
+async def split(interaction: discord.Interaction, total_amount: int, repairs: int, members: str):
+
     guild = interaction.guild
     user_mentions = [m.strip() for m in members.split()]
     selected_members = []
@@ -154,25 +140,27 @@ async def split(
         await interaction.response.send_message("❌ No valid members specified!", ephemeral=True)
         return
 
-    final_amount = round((total_amount * 80 / 100) - repairs - 250000, 2)
+    # Final amount = 80% - repairs - 250k
+    final_amount = (total_amount * 80 // 100) - repairs - 250000
 
     if final_amount < 0:
         await interaction.response.send_message("❌ Final amount cannot be negative!", ephemeral=True)
         return
 
-    per_share = round(final_amount / len(selected_members), 2)
+    per_share = final_amount // len(selected_members)
 
     embed = discord.Embed(
         title="💰 Loot Split Breakdown 💰",
         color=discord.Color.gold()
     )
+
     embed.add_field(name="📣 Started by", value=interaction.user.mention, inline=False)
-    embed.add_field(name="Total estimated value", value=f"💰 {total_amount}M", inline=False)
-    embed.add_field(name="Guild buys for", value=f"💳 80% of estimated value", inline=False)
-    embed.add_field(name="Repairs", value=f"🔧 {repairs}M", inline=False)
-    embed.add_field(name="Accounting fees", value=f"📘 250,000", inline=False)
-    embed.add_field(name="Final amount to split", value=f"💰 {final_amount}M", inline=False)
-    embed.add_field(name="Each player's share", value=f"💸 {per_share}M", inline=False)
+    embed.add_field(name="Total estimated value", value=f"💰 {format_full(total_amount)}", inline=False)
+    embed.add_field(name="Guild buys for", value="💳 80% of estimated value", inline=False)
+    embed.add_field(name="Repairs", value=f"🔧 {format_full(repairs)}", inline=False)
+    embed.add_field(name="Accounting fees", value="📘 250,000", inline=False)
+    embed.add_field(name="Final amount to split", value=f"💰 {format_full(final_amount)}", inline=False)
+    embed.add_field(name="Each player's share", value=f"💸 {format_full(per_share)}", inline=False)
 
     split_id = str(interaction.id)
     splits[split_id] = {

@@ -136,9 +136,7 @@ async def remove_money(
 async def split(
     interaction: discord.Interaction,
     total_amount: float,
-    percentage: float,
     repairs: float,
-    accounting: float,
     members: str
 ):
     guild = interaction.guild
@@ -156,7 +154,7 @@ async def split(
         await interaction.response.send_message("❌ No valid members specified!", ephemeral=True)
         return
 
-    final_amount = round((total_amount * percentage / 100) - repairs - accounting, 2)
+    final_amount = round((total_amount * 80 / 100) - repairs - 250000, 2)
 
     if final_amount < 0:
         await interaction.response.send_message("❌ Final amount cannot be negative!", ephemeral=True)
@@ -170,9 +168,9 @@ async def split(
     )
     embed.add_field(name="📣 Started by", value=interaction.user.mention, inline=False)
     embed.add_field(name="Total estimated value", value=f"💰 {total_amount}M", inline=False)
-    embed.add_field(name="Guild buys for", value=f"💳 {percentage}% of estimated value", inline=False)
+    embed.add_field(name="Guild buys for", value=f"💳 80% of estimated value", inline=False)
     embed.add_field(name="Repairs", value=f"🔧 {repairs}M", inline=False)
-    embed.add_field(name="Accounting fees", value=f"📘 {accounting}M", inline=False)
+    embed.add_field(name="Accounting fees", value=f"📘 250,000", inline=False)
     embed.add_field(name="Final amount to split", value=f"💰 {final_amount}M", inline=False)
     embed.add_field(name="Each player's share", value=f"💸 {per_share}M", inline=False)
 
